@@ -1,6 +1,6 @@
 let main = document.querySelector('main')
 let message = document.querySelector('#message').innerHTML
-let sse = new EventSource("http://127.0.0.1:8888/chat");
+let sse = new EventSource("http://127.0.0.1:5973/chat");
 
 function getRandomInt(min, max) {
     min = Math.ceil(min);
@@ -10,7 +10,7 @@ function getRandomInt(min, max) {
 
 sse.onmessage = function(e) {
     let msg = JSON.parse(e.data);
-    let cls = 'zerg'
+    let cls
 
     switch (getRandomInt(1, 3)) {
         case 1:
@@ -21,6 +21,9 @@ sse.onmessage = function(e) {
             break;
         case 3:
             cls = 'zerg'
+            break;
+        default:
+            cls = 'tarran'
             break;
     }
 

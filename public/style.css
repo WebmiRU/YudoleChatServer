@@ -9,6 +9,7 @@
 }
 body {
   background: url("bg.webp") top center repeat-y;
+  overflow: hidden scroll;
 }
 
 * {
@@ -25,8 +26,8 @@ body {
   grid-template-areas: "service-icon nickname" "text text";
   grid-template-columns: 30px 1fr;
   grid-template-rows: 30px 1fr;
-  width: calc(100% - 60px);
-  margin: 30px;
+  width: calc(100% - 40px);
+  margin: 20px;
   color: #FFF;
   border-radius: 10px;
   animation: slide-left 1s ease-out;

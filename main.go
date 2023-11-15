@@ -11,11 +11,12 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 )
 
 var CHAT_HOST string
 var CHAT_PORT int
+var clients []*http.ResponseWriter
+var out = make(chan JsonMessage, 9999)
 
 func init() {
 	err := godotenv.Load(".env")
@@ -33,6 +34,7 @@ func setHttpHeaders(w *http.ResponseWriter) {
 	(*w).Header().Set("Cache-Control", "no-cache")
 	(*w).Header().Set("Connection", "keep-alive")
 	(*w).Header().Set("Content-Type", "text/event-stream")
+	(*w).(http.Flusher).Flush()
 }
 
 func sseResponse(w *http.ResponseWriter, message string) {
@@ -42,7 +44,7 @@ func sseResponse(w *http.ResponseWriter, message string) {
 	_, err := (*w).Write([]byte(message))
 
 	if err != nil {
-		log.Println("Error response write")
+		log.Println("Error response write", err)
 	}
 
 	(*w).(http.Flusher).Flush()
@@ -50,30 +52,58 @@ func sseResponse(w *http.ResponseWriter, message string) {
 
 func sse(w http.ResponseWriter, r *http.Request) {
 	setHttpHeaders(&w)
+	clients = append(clients, &w)
 
-	var m, _ = json.Marshal(JsonMessage{
-		Id:      "ID-123",
-		Type:    "chat/message",
-		Service: "twitch",
-		Text:    "Hello world from SERVER",
-		TextSrc: "Hello world from SERVER",
-		User: User{
-			Id:       "ID-user-1",
-			Nickname: "E.Wolf",
-			Login:    "EWolf",
-			Meta:     Meta{},
-		},
-	})
+	done := make(chan bool)
+	go func() {
+		<-r.Context().Done()
+		done <- true
+	}()
+	<-done
 
+	//for {
+	//	time.Sleep(1)
+	//}
+
+	//var m, _ = json.Marshal(JsonMessage{
+	//	Id:      "ID-123",
+	//	Type:    "chat/message",
+	//	Service: "twitch",
+	//	Text:    "Hello world from SERVER",
+	//	TextSrc: "Hello world from SERVER",
+	//	User: User{
+	//		Id:       "ID-user-1",
+	//		Nickname: "E.Wolf",
+	//		Login:    "EWolf",
+	//		Meta:     Meta{},
+	//	},
+	//})
+
+	//for {
+	//	log.Println("Send client data:", "Hello 101")
+	//sseResponse(&w, string(m))
+	//time.Sleep(2 * time.Second)
+	//}
+
+	//sseResponse(&w, "")
+
+}
+
+func sseBroadcast() {
 	for {
-		log.Println("Send client data:", "Hello 101")
-		sseResponse(&w, string(m))
-		time.Sleep(2 * time.Second)
+		var msg, _ = <-out
+		log.Println("INCOME MESSAGE")
+		message, _ := json.Marshal(msg)
+
+		for _, w := range clients {
+			sseResponse(w, string(message))
+		}
 	}
 }
 
 func main() {
 	go runTCPServer()
+	go sseBroadcast()
 
 	http.HandleFunc("/chat", sse)
 	http.Handle("/", http.FileServer(http.Dir("./public")))
@@ -84,20 +114,18 @@ func main() {
 }
 
 func runTCPServer() {
-	server, err := net.Listen("tcp", "0.0.0.0:8889")
+	socket, err := net.Listen("tcp", "0.0.0.0:8889")
 	if err != nil {
 		fmt.Println("Error listening:", err.Error())
 		os.Exit(1)
-	} else {
-		fmt.Println("OK!")
 	}
 
-	defer server.Close()
+	defer socket.Close()
 
 	for {
-		conn, err := server.Accept()
+		conn, err := socket.Accept()
 		if err != nil {
-			fmt.Println("Error accepting: ", err.Error())
+			log.Println("Error accepting:", err.Error())
 			os.Exit(1)
 		}
 
@@ -116,6 +144,9 @@ func tcpAccept(conn net.Conn) {
 			log.Println("Error while reading JSON message from TCP server", err)
 			break
 		}
+
+		log.Println("SEND OUT MESSAGE", message)
+		out <- message
 
 		switch strings.ToLower(message.Type) {
 		case "chat/message":
