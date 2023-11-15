@@ -1,0 +1,77 @@
+@import url("https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,3000,4000,5000,6000,7000,8001,3001,4001,5001,6001,7001,800&family=Roboto+Condensed:ital,wght@0,4000,6001,4001,600&display=swap");
+@keyframes slide-left {
+  0% {
+    left: calc(100% + 50px);
+  }
+  100% {
+    left: 0;
+  }
+}
+body {
+  background: url("bg.webp") top center repeat-y;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+
+.message {
+  display: grid;
+  font-family: "Roboto Condensed", sans-serif;
+  font-size: 18px;
+  grid-template-areas: "service-icon nickname" "text text";
+  grid-template-columns: 30px 1fr;
+  grid-template-rows: 30px 1fr;
+  width: calc(100% - 60px);
+  margin: 30px;
+  color: #FFF;
+  border-radius: 10px;
+  animation: slide-left 1s ease-out;
+}
+.message::before {
+  display: block;
+  content: "";
+  background: center center no-repeat;
+  background-size: contain;
+  width: 40px;
+  height: 40px;
+  position: absolute;
+  left: -15px;
+  top: -15px;
+}
+.message.zerg {
+  background-image: repeating-linear-gradient(to bottom, rgba(39, 3, 46, 0.75), rgba(39, 3, 46, 0.75) 2px, rgba(100, 8, 118, 0.75) 2px, rgba(100, 8, 118, 0.75) 4px);
+}
+.message.zerg:before {
+  background-image: url("img/zerg.png");
+}
+.message.protoss {
+  background-image: repeating-linear-gradient(to bottom, rgba(72, 44, 14, 0.75), rgba(72, 44, 14, 0.75) 2px, rgba(136, 83, 26, 0.75) 2px, rgba(136, 83, 26, 0.75) 4px);
+}
+.message.protoss:before {
+  background-image: url("img/protoss.png");
+}
+.message.terran {
+  background-image: repeating-linear-gradient(to bottom, rgba(179, 15, 21, 0.75), rgba(179, 15, 21, 0.75) 2px, rgba(236, 34, 41, 0.75) 2px, rgba(236, 34, 41, 0.75) 4px);
+}
+.message.terran:before {
+  background-image: url("img/terran.png");
+}
+.message .service-icon {
+  grid-area: service-icon;
+  display: block;
+}
+.message .nickname {
+  grid-area: nickname;
+  font-weight: bold;
+  line-height: 30px;
+}
+.message .text {
+  grid-area: text;
+  padding: 10px 15px;
+}
+
+/*# sourceMappingURL=style.css.map */
