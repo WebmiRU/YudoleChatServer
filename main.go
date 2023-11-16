@@ -9,14 +9,15 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strconv"
+	"slices"
 	"strings"
+	"sync"
 )
 
-var CHAT_HOST string
-var CHAT_PORT int
-var clients []*http.ResponseWriter
-var out = make(chan JsonMessage, 9999)
+var config Config
+var sseClientsMutex sync.Mutex
+var sseClietns []chan string
+var out = make(chan TypeMessage, 9999)
 
 func init() {
 	err := godotenv.Load(".env")
@@ -24,9 +25,16 @@ func init() {
 	if err != nil {
 		log.Println("Error while loading .env file:", err)
 	}
+}
 
-	CHAT_HOST = os.Getenv("CHAT_HOST")
-	CHAT_PORT, _ = strconv.Atoi(os.Getenv("CHAT_PORT"))
+func configLoad() {
+	configFile, _ := os.ReadFile("config.json")
+	err := json.Unmarshal(configFile, &config)
+
+	if err != nil {
+		log.Println("Error while read config file", err)
+		os.Exit(1)
+	}
 }
 
 func setHttpHeaders(w *http.ResponseWriter) {
@@ -50,43 +58,31 @@ func sseResponse(w *http.ResponseWriter, message string) {
 	(*w).(http.Flusher).Flush()
 }
 
-func sse(w http.ResponseWriter, r *http.Request) {
+func sseHandler(w http.ResponseWriter, r *http.Request) {
 	setHttpHeaders(&w)
-	clients = append(clients, &w)
 
-	done := make(chan bool)
-	go func() {
-		<-r.Context().Done()
-		done <- true
-	}()
-	<-done
+	c := make(chan string, 999)
 
-	//for {
-	//	time.Sleep(1)
-	//}
+	sseClientsMutex.Lock()
+	sseClietns = append(sseClietns, c)
+	sseClientsMutex.Unlock()
 
-	//var m, _ = json.Marshal(JsonMessage{
-	//	Id:      "ID-123",
-	//	Type:    "chat/message",
-	//	Service: "twitch",
-	//	Text:    "Hello world from SERVER",
-	//	TextSrc: "Hello world from SERVER",
-	//	User: User{
-	//		Id:       "ID-user-1",
-	//		Nickname: "E.Wolf",
-	//		Login:    "EWolf",
-	//		Meta:     Meta{},
-	//	},
-	//})
+	for {
+		select {
+		case message := <-c:
+			sseResponse(&w, message)
+		case <-r.Context().Done():
+			log.Println("SSE client closed connection")
 
-	//for {
-	//	log.Println("Send client data:", "Hello 101")
-	//sseResponse(&w, string(m))
-	//time.Sleep(2 * time.Second)
-	//}
+			sseClientsMutex.Lock()
+			idx := slices.Index(sseClietns, c)
+			sseClietns = slices.Delete(sseClietns, idx, idx+1)
+			sseClientsMutex.Unlock()
+			close(c)
 
-	//sseResponse(&w, "")
-
+			return
+		}
+	}
 }
 
 func sseBroadcast() {
@@ -95,26 +91,30 @@ func sseBroadcast() {
 		log.Println("INCOME MESSAGE")
 		message, _ := json.Marshal(msg)
 
-		for _, w := range clients {
-			sseResponse(w, string(message))
+		sseClientsMutex.Lock()
+		for _, c := range sseClietns {
+			c <- string(message)
 		}
+		sseClientsMutex.Unlock()
 	}
 }
 
 func main() {
+	configLoad()
+
 	go runTCPServer()
 	go sseBroadcast()
 
-	http.HandleFunc("/chat", sse)
+	http.HandleFunc("/chat", sseHandler)
 	http.Handle("/", http.FileServer(http.Dir("./public")))
-	addr := fmt.Sprintf("%s:%d", CHAT_HOST, CHAT_PORT)
+	addr := fmt.Sprintf("%s:%d", config.Servers.Host.Http.Address, config.Servers.Host.Http.Port)
 
 	log.Println("Server started at", addr)
 	log.Fatal(http.ListenAndServe(addr, nil))
 }
 
 func runTCPServer() {
-	socket, err := net.Listen("tcp", "0.0.0.0:8889")
+	socket, err := net.Listen("tcp", fmt.Sprintf("%s:%d", config.Servers.Host.Server.Address, config.Servers.Host.Server.Port))
 	if err != nil {
 		fmt.Println("Error listening:", err.Error())
 		os.Exit(1)
@@ -137,7 +137,7 @@ func tcpAccept(conn net.Conn) {
 	msg := json.NewDecoder(conn)
 
 	for {
-		var message JsonMessage
+		var message TypeMessage
 		err := msg.Decode(&message)
 
 		if err != nil {

@@ -1,6 +1,6 @@
 let main = document.querySelector('main')
 let message = document.querySelector('#message').innerHTML
-let sse = new EventSource("http://127.0.0.1:5973/chat");
+let sse = new EventSource("http://127.0.0.1:5379/chat");
 
 function getRandomInt(min, max) {
     min = Math.ceil(min);
@@ -30,7 +30,7 @@ sse.onmessage = function(e) {
     messageSend({
         'class': cls,
         'nickname': msg.user.nickname,
-        'text': msg.text,
+        'html': msg.html,
     })
 };
 
